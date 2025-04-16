@@ -39,7 +39,7 @@ latex_tokens = [
 tokenizer.add_tokens(latex_tokens)
 """
 
-
+#new tokenizer
 tokenizer = AutoTokenizer.from_pretrained("Salesforce/codet5-base", trust_remote_code=True)
 t5_model = T5ForConditionalGeneration.from_pretrained("Salesforce/codet5-base")
 t5_model.config.decoder_start_token_id = tokenizer.pad_token_id
@@ -94,8 +94,8 @@ def preprocess_dataset(dataset_split):
         image_tensor = clip_processor(images=image, return_tensors="pt")['pixel_values'].squeeze(0)
 
         inputs = tokenizer(example['caption'], return_tensors="pt", padding="max_length", truncation=True, max_length=256)
+        #added this
         latex_code = example['code']
-        # Optionally normalize if any weird characters
         if isinstance(latex_code, str):
             latex_code = latex_code.replace("\r\n", "\n").replace("\r", "\n")  # clean CRLF
 
@@ -104,7 +104,7 @@ def preprocess_dataset(dataset_split):
             return_tensors="pt",
             padding="max_length",
             truncation=True,
-            max_length=256  # increase to avoid cutting code
+            max_length=256  # increased max_lenght
         )
         """
         print("Raw TikZ Code:", example['code'])
@@ -182,6 +182,7 @@ model.t5_model.config.decoder_start_token_id = tokenizer.pad_token_id
 model.load_state_dict(torch.load("/content/tikzgen_epoch2.pt"))
 """
 
+#changed this method 
 def generate_tikz(caption, image_tensor, device="cuda"):
     model.eval()
     model.to(device)
