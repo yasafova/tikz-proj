@@ -87,16 +87,29 @@ class TikZGenModel(nn.Module):
             t5_model.config.d_model,
         )
 
-    def forward(self, image, input_ids, attention_mask, labels=None):
-        with torch.no_grad():
-            image_features = self.clip_model.get_image_features(pixel_values=image)
+    def forward(self, image=None, input_ids=None, attention_mask=None, labels=None):
+        image_features = None
+        text_features = None
 
-        text_features = self.t5_model.encoder(
-            input_ids=input_ids, attention_mask=attention_mask
-        ).last_hidden_state[:, 0, :]
-        combined_features = torch.cat([text_features, image_features], dim=1)
+        if image is not None:
+            with torch.no_grad():
+                image_features = self.clip_model.get_image_features(pixel_values=image)
+
+        if input_ids is not None and attention_mask is not None:
+            text_features = self.t5_model.encoder(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).last_hidden_state[:, 0, :]
+
+        if image_features is not None and text_features is not None:
+            combined_features = torch.cat([text_features, image_features], dim=1)
+        elif image_features is not None:
+            combined_features = image_features
+        elif text_features is not None:
+            combined_features = text_features
+        else:
+            raise ValueError("At least one of image or text input must be provided.")
+
         fused = self.fusion(combined_features).unsqueeze(1)
-
         return self.t5_model(inputs_embeds=fused, labels=labels)
 
 
@@ -223,23 +236,70 @@ clip_score_metric = TorchCLIPScore(
 ).to(device)
 
 
-def generate_tikz(caption, image_tensor):
+def generate_tikz(caption=None, image_tensor=None):
+    """
+    Modified function to handle three types of inputs:
+    1. Image only
+    2. Text only
+    3. Both Image and Text together
+    """
+    # breakpoint()
     model.eval()
 
-    image_tensor = image_tensor.unsqueeze(0).to(device)  # add batch dimension
-    input_ids = tokenizer(caption, return_tensors="pt").input_ids.to(device)
-    attention_mask = tokenizer(caption, return_tensors="pt").attention_mask.to(device)
+    if caption is not None and image_tensor is not None:
+        # Multimodal input: Image and Text together
+        image_tensor = image_tensor.unsqueeze(0).to(device)  # Add batch dimension
+        input_ids = tokenizer(caption, return_tensors="pt").input_ids.to(device)
+        attention_mask = tokenizer(caption, return_tensors="pt").attention_mask.to(
+            device
+        )
 
-    with torch.no_grad():
-        text_features = model.t5_model.encoder(
-            input_ids=input_ids, attention_mask=attention_mask
-        ).last_hidden_state[:, 0, :]
-        image_features = model.clip_model.get_image_features(pixel_values=image_tensor)
-        combined = model.fusion(
-            torch.cat([text_features, image_features], dim=1)
-        ).unsqueeze(1)
-        generated_ids = model.t5_model.generate(
-            inputs_embeds=combined, max_length=256, num_beams=4, early_stopping=True
+        with torch.no_grad():
+            text_features = model.t5_model.encoder(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).last_hidden_state[:, 0, :]
+            image_features = model.clip_model.get_image_features(
+                pixel_values=image_tensor
+            )
+            combined = model.fusion(
+                torch.cat([text_features, image_features], dim=1)
+            ).unsqueeze(1)
+            generated_ids = model.t5_model.generate(
+                inputs_embeds=combined, max_length=256, num_beams=4, early_stopping=True
+            )
+
+    elif caption is not None:
+        # Text only input
+        input_ids = tokenizer(caption, return_tensors="pt").input_ids.to(device)
+        attention_mask = tokenizer(caption, return_tensors="pt").attention_mask.to(
+            device
+        )
+
+        with torch.no_grad():
+            text_features = model.t5_model.encoder(
+                input_ids=input_ids, attention_mask=attention_mask
+            ).last_hidden_state[:, 0, :]
+            fused = text_features.unsqueeze(1)
+            generated_ids = model.t5_model.generate(
+                inputs_embeds=fused, max_length=256, num_beams=4, early_stopping=True
+            )
+
+    elif image_tensor is not None:
+        # Image only input
+        image_tensor = image_tensor.unsqueeze(0).to(device)  # Add batch dimension
+
+        with torch.no_grad():
+            image_features = model.clip_model.get_image_features(
+                pixel_values=image_tensor
+            )
+            fused = model.fusion(image_features).unsqueeze(1)
+            generated_ids = model.t5_model.generate(
+                inputs_embeds=fused, max_length=256, num_beams=4, early_stopping=True
+            )
+
+    else:
+        raise ValueError(
+            "At least one of `caption` or `image_tensor` must be provided."
         )
 
     return tokenizer.decode(generated_ids[0], skip_special_tokens=True)
@@ -253,11 +313,15 @@ test_data = preprocessed_test[:20]
 predictions, references, images, captions = [], [], [], []
 
 for ex in test_data:
+    # pred = generate_tikz(image_tensor = ex["image"])
     pred = generate_tikz(ex["caption"], ex["image"])
     predictions.append(pred)
     references.append(ex["reference"])  # or ex['reference'] if using preprocessed_data
     images.append(ex["image"])
     captions.append(ex["caption"])
+
+breakpoint()
+print(predictions[0])
 
 to_PIL = transforms.ToPILImage()
 
@@ -544,6 +608,25 @@ print(f"🟣 Exact Match: {exact_match_score:.4f}")
 
 ####################
 
+
+#####################
+
+
+from kid_score import compute_kid
+from PIL import Image
+import os
+
+# Paths to real and generated image folders
+real_dir = "real_imgs"
+gen_dir = "gen_imgs"
+
+# Generate predictions and render them as PNG images into these folders
+# Then call:
+kid_score = compute_kid([real_dir, gen_dir])
+print("KID Score:", kid_score)
+
+
+######################
 
 breakpoint()
 
