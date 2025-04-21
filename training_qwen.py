@@ -2,6 +2,12 @@
 #!pip install  datasets transformers peft accelerate bitsandbytes torchmetrics
 # code with qwen
 
+# dependencies for tikz code -> pdf -> images 
+# sudo apt-get update
+# sudo apt-get install -y texlive-latex-base texlive-latex-extra texlive-pictures poppler-utils
+# pip install pdf2image
+
+
 # 🧠 Step 2: Import modules
 import torch
 import os
@@ -34,6 +40,12 @@ HUGGINGFACE_CACHE_DIR = "/home/mila/d/daria.yasafova/scratch/huggingface"
 from collections import Counter
 from nltk.util import ngrams
 import numpy as np
+
+# for tikz code -> pdf -> image
+import subprocess
+import tempfile
+from pdf2image import convert_from_path
+from PIL import Image
 
 
 def crystal_bleu(candidate_list, references_list, n=4):
@@ -269,6 +281,45 @@ clip_score_metric = TorchCLIPScore(
     model_name_or_path="openai/clip-vit-base-patch32"
 ).to(device)
 
+def compile_tikz_to_image(tikz_code: str, dpi: int = 300) -> Image.Image:
+    """
+    If `tex_content` begins with \documentclass, treat it as a full document.
+    Otherwise, wrap it in a minimal standalone TikZ document.
+    Compile to PDF with pdflatex, convert the first page to a PIL Image.
+    """
+    # Decide whether we're given a full .tex or just a snippet
+    if tex_content.lstrip().startswith(r"\documentclass"):
+        full_tex = tex_content
+    else:
+        # wrap snippet in standalone template
+        tpl = (
+            "\\documentclass[tikz,border=2pt]{{standalone}}\n"
+            "\\usepackage{{tikz}}\n"
+            "\\begin{{document}}\n"
+            "{code}\n"
+            "\\end{{document}}"
+        )
+        full_tex = tpl.format(code=tex_content)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # write out .tex
+        tex_path = os.path.join(tmp, "compiled.tex")
+        with open(tex_path, "w") as f:
+            f.write(full_tex)
+
+        # run pdflatex
+        subprocess.run(
+            ["pdflatex", "-interaction=batchmode", "-halt-on-error", "compiled.tex"],
+            cwd=tmp,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+
+        # convert PDF → PIL Image
+        pdf_path = os.path.join(tmp, "compiled.pdf")
+        pages = convert_from_path(pdf_path, dpi=dpi)
+        return pages[0]
 
 def generate_tikz():
     """
@@ -333,6 +384,13 @@ def generate_tikz():
                         f.write(model_tikz)
 
                     img.save(os.path.join(mode_save_folder, f"{count}_img.jpg"))
+
+                    # --- NEW: compile and save the predicted TikZ as PNG ---
+                    try
+                        pred_img = compile_tikz_to_image(model_tikz)
+                        pred_img.save(os.path.join(mode_save_folder, f"{count}_prediction.png"))
+                    except Exception as e:
+                        print(f"[Warning] could not compile prediction {count}: {e}")
 
                     count += 1
 
