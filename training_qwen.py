@@ -320,6 +320,13 @@ def compile_tikz_to_image(tikz_code: str, dpi: int = 300) -> Image.Image:
         pdf_path = os.path.join(tmp, "compiled.pdf")
         pages = convert_from_path(pdf_path, dpi=dpi)
         return pages[0]
+    except subprocess.CalledProcessError as e:
+        print(f"[compile warning] pdflatex failed: {e}")
+    except Exception as e:
+        print(f"[compile warning] conversion error: {e}")
+
+    # on any failure, return None
+    return None
 
 def generate_tikz():
     """
@@ -386,11 +393,11 @@ def generate_tikz():
                     img.save(os.path.join(mode_save_folder, f"{count}_img.jpg"))
 
                     # --- NEW: compile and save the predicted TikZ as PNG ---
-                    try
-                        pred_img = compile_tikz_to_image(model_tikz)
-                        pred_img.save(os.path.join(mode_save_folder, f"{count}_prediction.png"))
-                    except Exception as e:
-                        print(f"[Warning] could not compile prediction {count}: {e}")
+                    pred_img = compile_tex_to_image(model_tikz)
+                    if pred_img is not None:
+                        pred_img.save(os.path.join(mode_save_folder, f"{idx}_prediction.png"))
+                    else:
+                        pass
 
                     count += 1
 
