@@ -12,3 +12,6 @@ A collection of Jupyter notebooks to automatically collect TikZ code snippets an
 
 ## Usage
 Each notebook can be run interactively in JupyterLab/Notebook
+
+## Dependency management 
+Each notebook begins with a setup/install cell that installs exactly the packages it needs (e.g., via !pip install ...). The provided requirements.txt is needed for running **crawlingGitHub.ipynb**. 
