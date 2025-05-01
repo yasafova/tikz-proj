@@ -1,19 +1,7 @@
-"""this is a modified copy of paraphrase.py"""
-
-""" todo rename, todo github"""
-
 import pandas as pd
-
-# from google import genai  # ensure you have the gemini client library installed
 import os, re
 from tqdm import tqdm
-
-# import time
-# import sys
 import numpy as np
-
-# from huggingface_hub import InferenceClient
-# breakpoint()
 from using_unsloth import make_inference
 from datasets import load_dataset
 
@@ -53,24 +41,12 @@ def get_db_password(file_path="keys.txt", type="DB_PASSWORD"):
     raise ValueError(f"`{type}`not found in the file.")
 
 
-# # Initialize Gemini client
-# gemini_api_key = get_db_password(type='GEMINI_API_KEY')
-# client = genai.Client(api_key=gemini_api_key)
-
-
-# hf_client = InferenceClient(
-#     provider="hf-inference",
-#     api_key="hf_***"
-# )
-
-
 def paraphrase_with_unsloth(review_text, folder, count):
 
     filename = os.path.join(folder, f"{count}_textdescr.txt")
     if not os.path.exists(filename):
 
         paraphrased_text = make_inference(review_text)
-        # breakpoint()
         pattern = r"(?s).*#Output_description:\s*(.*)$"
         match = re.search(pattern, paraphrased_text[0])
         if match:
@@ -111,9 +87,6 @@ def load_datikz(start, end):
 
 
 if __name__ == "__main__":
-
-    ##############
-    # breakpoint()
     start = START
     end = END
     data = load_datikz(start, end)
@@ -122,17 +95,7 @@ if __name__ == "__main__":
     # Extract and save each code element
     for idx, item in tqdm(enumerate(data), total=len(data), desc="Processing"):
         idx_new = idx + start
-        # print(idx_new)
         code = item["code"]
-        # print(code)
-        # paraphrase_with_unsloth(code, folder, idx)
         paraphrase_with_unsloth(
             code.replace("{", "{{").replace("}", "}}"), folder, idx_new
         )
-        # with open(
-        #    f"{folder}/{idx_new}_code.txt",
-        #    "w",
-        # ) as output_file:
-        #    output_file.write(code)
-
-    #################
