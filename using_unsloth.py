@@ -143,36 +143,10 @@ FastLanguageModel.for_inference(model)  # Enable native 2x faster inference\
 
 
 def make_inference(prompt):
-    # prompt = prompt  + EOS_TOKEN
-
-    # FastLanguageModel.for_inference(model)  # Enable native 2x faster inference\
-
     inputs = tokenizer(
-        [
-            tikz_prompt.format(prompt)
-            + EOS_TOKEN
-            # alpaca_prompt.format(
-            #     "Paraphrase the input text. Preserve the original meaning but use different wording. Put the paraphrased text in the response section", # instruction
-            #     prompt, # input
-            #     "", # output - leave this blank for generation!
-            # ) + EOS_TOKEN
-            # f"Paraphrase the input text. Preserve the original meaning but use different wording. Return only the paraphrased version: \n {prompt}"+EOS_TOKEN
-        ],
+        [tikz_prompt.format(prompt) + EOS_TOKEN],
         return_tensors="pt",
     ).to("cuda")
-    # breakpoint()
-
-    # inputs = tokenizer(
-    # [
-    #     prompt
-    # ], return_tensors = "pt").to("cuda")
-    # print(f'Forward pass...')
     outputs = model.generate(**inputs, use_cache=True, max_new_tokens=512)
-    # from transformers import TextStreamer
-    # text_streamer = TextStreamer(tokenizer)
-    # outputs = model.generate(**inputs, streamer = text_streamer, max_new_tokens = 128)
-    # print(f'Forward pass...DONE')
-
     output_text = tokenizer.batch_decode(outputs)
-    # print(output_text)
     return output_text
